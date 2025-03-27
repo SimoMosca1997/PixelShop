@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pixel Art Dapp con PayPal</title>
+  <script src="https://www.paypal.com/sdk/js?client-id=AYcM7LNzlGCesliXoPLM_Rxzbbklz7jxtpVeWsYafr_zV-naZ8fC5FWqpU-qXEPSJ1Rdd-wLZMqbXZTY"></script>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+
+    #info {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    #info button {
+      margin-top: 10px;
+      padding: 5px 10px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    #paypal-button-container {
+      display: none; /* Nascondi il pulsante finché non vengono selezionati pixel */
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div id="info">
+    <h2>Benvenuto alla Pixel Art Dapp!</h2>
+    <p>Seleziona i pixel cliccando sulla griglia, e paga per acquistarli con PayPal.</p>
+    <p>Selected Pixels: <span id="selectedPixels">0</span></p>
+    <p>Total Price: $<span id="totalPrice">0</span></p>
+    <button id="resetButton">Reset Canvas</button>
+    <div id="paypal-button-container"></div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const selectedPixelsDisplay = document.getElementById("selectedPixels");
+    const totalPriceDisplay = document.getElementById("totalPrice");
+    const paypalButtonContainer = document.getElementById("paypal-button-container");
+    const resetButton = document.getElementById("resetButton");
+
+    let selectedPixels = [];
+    let pixelSize = 20;
+    const pricePerPixel = 1; // Prezzo in dollari per pixel
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      drawGrid();
+    }
+
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    function drawGrid() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "#ddd";
+
+      for (let x = 0; x < canvas.width; x += pixelSize) {
+        for (let y = 0; y < canvas.height; y += pixelSize) {
+          ctx.strokeRect(x, y, pixelSize, pixelSize);
+        }
+      }
+
+      selectedPixels.forEach(pixel => {
+        const [x, y] = pixel.split(",").map(Number);
+        ctx.fillStyle = "rgba(0, 128, 255, 0.5)";
+        ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+      });
+    }
+
+    canvas.addEventListener("click", event => {
+      const x = Math.floor(event.clientX / pixelSize);
+      const y = Math.floor(event.clientY / pixelSize);
+      const key = `${x},${y}`;
+
+      if (!selectedPixels.includes(key)) {
+        selectedPixels.push(key);
+      } else {
+        selectedPixels = selectedPixels.filter(p => p !== key);
+      }
+
+      updateUI();
+      drawGrid();
+    });
+
+    resetButton.addEventListener("click", () => {
+      selectedPixels = [];
+      updateUI();
+      drawGrid();
+    });
+
+    function updateUI() {
+      const totalCost = selectedPixels.length * pricePerPixel;
+      selectedPixelsDisplay.textContent = selectedPixels.length;
+      totalPriceDisplay.textContent = totalCost.toFixed(2);
+
+      if (selectedPixels.length > 0) {
+        paypalButtonContainer.style.display = "block"; // Mostra il pulsante
+      } else {
+        paypalButtonContainer.style.display = "none"; // Nascondi il pulsante
+      }
+    }
+
+    paypal.Buttons({
+      createOrder: (data, actions) => {
+        const totalCost = selectedPixels.length * pricePerPixel; // Calcola il costo totale
+        return actions.order.create({
+          purchase_units: [{
+            amount: {
+              value: totalCost.toFixed(2)
+            },
+            description: `Purchase of ${selectedPixels.length} pixels`
+          }]
+        });
+      },
+      onApprove: (data, actions) => {
+        return actions.order.capture().then(details => {
+          alert(`Payment successful! Transaction ID: ${details.id}`);
+          selectedPixels = []; // Resetta la selezione
+          updateUI();
+          drawGrid();
+        });
+      },
+      onError: err => {
+        console.error("Error during payment:", err);
+        alert("An error occurred during the payment process. Please try again.");
+      }
+    }).render(paypalButtonContainer);
+  </script>
+</body>
+</html>
